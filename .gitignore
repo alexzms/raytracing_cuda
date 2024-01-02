@@ -1,0 +1,4 @@
+.idea
+cmake-build-debug/
+nvidia/profiler/report[0-9999].nsys-rep
+nvidia/results/raytracing_cuda_[0-9999].ncu-rep
