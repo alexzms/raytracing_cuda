@@ -1,6 +1,18 @@
 {
     "extension": "ncu-proj",
     "files": [
+        {
+            "is_open": true,
+            "path": "../results/raytracing_cuda_2.ncu-rep"
+        },
+        {
+            "is_open": true,
+            "path": "../results/raytracing_cuda_3.ncu-rep"
+        },
+        {
+            "is_open": true,
+            "path": "../results/raytracing_cuda_4.ncu-rep"
+        }
     ],
     "launcher": {
         "activity/interactiveprofile/cachecontrol": "Flush All",
@@ -36,7 +48,7 @@
         "activity/profile/launchskipbeforematchcount": "0",
         "activity/profile/launchskipcount": "0",
         "activity/profile/nvtxincludeexcludeoptions": "",
-        "activity/profile/outputfile": "",
+        "activity/profile/outputfile": "E:\\ComputerGraphics\\projects\\raytracing_cuda\\nvidia\\results\\raytracing_cuda_%i",
         "activity/profile/rangefilteroptions": "",
         "activity/profile/rangereplayoptions": "",
         "activity/profile/replaymode": "Kernel",
@@ -46,6 +58,12 @@
         "activity/profile/samplingMaxPasses": "5",
         "activity/profile/sourcefolders": "",
         "activity/profile/targetprocesses": "Application Only",
+        "activity/systemtrace/gpu_metrics/metrics_set": -1,
+        "activity/systemtrace/nvtx/range_hotkey_value": 122,
+        "activity/systemtrace/target/app_selection_method": "SpecifyProcessName",
+        "activity/systemtrace/target/attach_mode": "LaunchAnother",
+        "activity/systemtrace/target/command_line": "\"E:\\ComputerGraphics\\projects\\raytracing_cuda\\cmake-build-debug\\raytracing_cuda.exe\" ",
+        "activity/systemtrace/target/process_name": "E:\\ComputerGraphics\\projects\\raytracing_cuda\\cmake-build-debug\\raytracing_cuda.exe",
         "platform/linux (x86_64)/device": "",
         "platform/linux/arguments": "",
         "platform/linux/autoconnect": true,
@@ -55,7 +73,10 @@
         "platform/win32/arguments": "",
         "platform/win32/autoconnect": true,
         "platform/win32/environment": "",
-        "platform/win32/executable": "",
+        "platform/win32/executable": "E:\\ComputerGraphics\\projects\\raytracing_cuda\\cmake-build-debug\\raytracing_cuda.exe",
+        "platform/win32/executable/history": [
+            "E:\\ComputerGraphics\\projects\\raytracing_cuda\\cmake-build-debug\\raytracing_cuda.exe"
+        ],
         "platform/win32/workingdir": "",
         "platform/windows/device": "localhost"
     },

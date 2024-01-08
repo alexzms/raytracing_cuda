@@ -9,5 +9,8 @@
 #include "unstructured_content.h"
 #include "vec3.h"
 #include "ray.h"
+#include "hittable.h"
+#include "camera.h"
+#include "utilities.h"
 
 #endif //RAYTRACING_CUDA_RAYTRACING_CUDA_H

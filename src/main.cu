@@ -34,7 +34,7 @@ void output_an_image_test() {
     visualime::scene::canvas_scene_cuda_2d scene{width, height, (double)coeff, true};
     scene.launch(true, 60);
     scene.wait_for_running();
-    output_an_image OAI{2560 * coeff, 1600 * coeff, scene.get_d_ptr(), scene.get_d_ptr_size()};
+    rt_cuda::output_an_image OAI{2560 * coeff, 1600 * coeff, scene.get_d_ptr(), scene.get_d_ptr_size()};
 
     scene.refresh();
     unsigned char z = 0;
