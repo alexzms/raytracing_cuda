@@ -11,9 +11,11 @@ namespace rt_cuda {
     class ray {
     public:
         __device__ ray() = default;
-        __device__ ray(const vec3<float>& A, const vec3<float>& B): _origin(A), _direction(B) {}
+        __device__ ray(const vec3<float>& origin, const vec3<float>& direction): _origin(origin), _direction(direction) {}
         __device__ vec3<float> origin() const { return _origin; }
         __device__ vec3<float> direction() const {return _direction; }
+
+        __device__ vec3<float> at(float t) const { return _origin + t * _direction; }
 
     private:
         vec3<float> _origin, _direction;
