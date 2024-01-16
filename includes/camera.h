@@ -78,6 +78,9 @@ namespace rt_cuda {
         __device__ static inline float linear_to_gamma(float val) {
             return std::sqrt(val);
         }
+        __device__ static inline float gamma_to_linear(float val) {
+            return val * val;
+        }
 
         __device__ ray get_ray_defocus_monte_carlo(curandState *state, unsigned int w,
                                                    unsigned int h, unsigned i, unsigned j) const {
@@ -118,13 +121,13 @@ namespace rt_cuda {
                     }
                 } else {
                     scatter_end = depth;
-                    result += background_color;
+                    result += get_background_color(0.5f * (current_ray.direction().y() + 1.0f));
                     break;
                 }
             }
 
             // Multiply attenuations
-            for (int i = scatter_end - 1; i >= 0; --i) {
+            for (int i = static_cast<int>(scatter_end) - 1; i >= 0; --i) {
                 result *= attenuation_array[i];
                 result += emission_array[i];
             }
@@ -187,6 +190,13 @@ namespace rt_cuda {
             defocus_disk_v = v * defocus_radius;
         }
 
+        __device__ color3f get_background_color(float blend_factor) const {
+            return {1.0f, 1.0f, 1.0f};
+            color3f color1{1.0, 1.0, 1.0};
+            color3f color2{0.5, 0.7, 1.0};
+            return (1 - blend_factor) * color1 + blend_factor * color2;
+        }
+
         __device__ point3f pixel_sample_square_monte_carlo(curandState *state, unsigned i, unsigned j) const {
             auto px = -0.5f + (i + utilities::random_float_d(state)) * reciprocal_sqrt_spp;
             auto py = -0.5f + (j + utilities::random_float_d(state)) * reciprocal_sqrt_spp;      // from -0.5~0.5
@@ -212,15 +222,15 @@ namespace rt_cuda {
     namespace kernel_funcs {
         __global__ void render
                 (uchar3 *d_ptr, const hittable *world, const camera *cam, unsigned full_w, unsigned full_h,
-                 unsigned sqrt_spp, unsigned max_depth) {
+                 unsigned sqrt_spp, unsigned max_depth, float past_spp = 0) {
             unsigned width = threadIdx.x + blockIdx.x * blockDim.x;
             unsigned height = threadIdx.y + blockIdx.y * blockDim.y;
 
             if (width >= full_w || height >= full_h) return;
+
             curandState state;
             curand_init(clock64(), width + height, 0, &state);
 
-            unsigned index = width + height * full_w;
             vec3<float> pixel_color{0, 0, 0};
             for (unsigned i = 0; i != sqrt_spp; ++i) {
                 for (unsigned j = 0; j != sqrt_spp; ++j) {
@@ -228,9 +238,19 @@ namespace rt_cuda {
                     pixel_color = pixel_color + cam->ray_color(&state, r, max_depth, world);
                 }
             }
-            // normalize (255 and spp)
-            pixel_color /= static_cast<float>(sqrt_spp * sqrt_spp);
-            // gamma correction
+            unsigned index = width + (full_h - height) * full_w;                   // flipped y index for image writing.
+            auto spp = static_cast<float>(sqrt_spp * sqrt_spp);
+            pixel_color /= spp;
+            color3f past_render_result = {static_cast<float>(d_ptr[index].x) / 255.0f,
+                                          static_cast<float>(d_ptr[index].y) / 255.0f,
+                                          static_cast<float>(d_ptr[index].z) / 255.0f} ;
+            // change to linear space
+            past_render_result[0] = camera::gamma_to_linear(past_render_result[0]);
+            past_render_result[1] = camera::gamma_to_linear(past_render_result[1]);
+            past_render_result[2] = camera::gamma_to_linear(past_render_result[2]);
+            // accumulation
+            pixel_color = (past_render_result * past_spp + spp * pixel_color) / (past_spp + spp);
+            // change to gamma space
             pixel_color[0] = camera::linear_to_gamma(pixel_color[0]);
             pixel_color[1] = camera::linear_to_gamma(pixel_color[1]);
             pixel_color[2] = camera::linear_to_gamma(pixel_color[2]);
@@ -238,6 +258,7 @@ namespace rt_cuda {
             uchar3 result = {static_cast<unsigned char>(pixel_color[0] * 255),
                              static_cast<unsigned char>(pixel_color[1] * 255),
                              static_cast<unsigned char>(pixel_color[2] * 255)};
+
             // write to d_ptr.
             d_ptr[index] = result;
         }
@@ -247,7 +268,7 @@ namespace rt_cuda {
         camera_wrapper(camera *d_cam, GLsizei width, GLsizei height, uchar3 *d_ptr, unsigned spp) :
                 _d_camera(d_cam), _spp(spp), _sqrt_spp(std::sqrt(spp)), _width(width), _height(height), _d_ptr(d_ptr) {}
 
-        void render(hittable *d_world, dim3 block = dim3{10, 10}, unsigned max_depth = 2) {
+        void render(hittable *d_world, dim3 block = dim3{5, 5}, unsigned max_depth = 20) {
             _block = block;
             _grid = dim3{(_width + _block.x - 1) / _block.x, (_height + _block.y - 1) / _block.y};
             printf("block: (%d, %d), grid: (%d, %d)\n", _block.x, _block.y, _grid.x, _grid.y);
@@ -257,12 +278,18 @@ namespace rt_cuda {
                     _sqrt_spp, max_depth);
 //            CHECK_ERROR(cudaDeviceSynchronize());
         }
-
-//        friend __global__ void kernel_funcs::render (uchar3* d_ptr, const hittable* world,
-//                                                     const camera* cam, unsigned full_w, unsigned full_h,
-//                                                     unsigned sqrt_spp, unsigned max_depth);
+        void accumu_render(hittable *d_world, dim3 block = dim3{5, 5}, unsigned max_depth = 20) {
+            _block = block;
+            _grid = dim3{(_width + _block.x - 1) / _block.x, (_height + _block.y - 1) / _block.y};
+            printf("block: (%d, %d), grid: (%d, %d)\n", _block.x, _block.y, _grid.x, _grid.y);
+            kernel_funcs::render<<<_grid, _block>>>(_d_ptr, d_world,
+                    _d_camera, _width, _height,
+                    _sqrt_spp, max_depth, _accumu_spp);
+            _accumu_spp += _spp;
+//            CHECK_ERROR(cudaDeviceSynchronize());
+        }
     private:
-        unsigned _spp, _sqrt_spp;
+        unsigned _spp, _sqrt_spp, _accumu_spp{};
         uchar3 *_d_ptr;
         dim3 _grid{}, _block{};
         GLsizei _width, _height;

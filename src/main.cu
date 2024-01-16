@@ -61,9 +61,12 @@ __global__ void create_assets(rt_cuda::texture_base** d_textures, size_t num_tex
                               rt_cuda::hittable_list** world)
 {
     using namespace rt_cuda;
-    d_textures[0] = new solid_color{color3f{0.5, 0.5, 0.5}};
+    d_textures[0] = new solid_color{color3f{0.2, 0.7, 0.6}};
+    d_textures[1] = new solid_color{color3f{0.4, 0.1, 0.9}};
     d_materials[0] = new lambertian{d_textures[0]};
-    d_hittables[0] = new sphere{point3f{0, -3, 0}, 1.0f, d_materials[0]};
+    d_materials[1] = new lambertian{d_textures[1]};
+    d_hittables[0] = new sphere{point3f{0, 3, 0}, 1.0f, d_materials[0]};
+    d_hittables[1] = new sphere{point3f{0, -100, 0}, 102.0f, d_materials[1]};
 
     (*world) = new hittable_list{d_hittables, num_hittable};
 }
@@ -102,7 +105,7 @@ __global__ void destroy_assets(rt_cuda::texture_base** d_textures, size_t num_te
 
 void background_color_scene() {
     using namespace rt_cuda;
-    size_t num_texture = 1, num_material = 1, num_hittable = 1;
+    size_t num_texture = 2, num_material = 2, num_hittable = 2;
     // malloc all memory space for kernel func: create_assets
     texture_base** d_textures, **h_textures;
     material_base** d_materials, **h_materials;
@@ -152,6 +155,7 @@ void background_color_scene() {
     CHECK_ERROR(cudaMemcpy(h_cam, d_cam, sizeof(camera*), cudaMemcpyDeviceToHost));
 
     visualime::scene::canvas_scene_cuda_2d scene{width, height, (double)coeff, true};
+    scene.set_constant_refresh(true);
     scene.launch(true, 60);
     scene.wait_for_running();
     camera_wrapper cam_wrapper{*h_cam, width, height, scene.get_d_ptr(), 1};
@@ -160,14 +164,14 @@ void background_color_scene() {
         CHECK_ERROR(cudaEventCreate(&start));
         CHECK_ERROR(cudaEventCreate(&stop));
         CHECK_ERROR(cudaEventRecord(start, nullptr));
-        cam_wrapper.render(*h_world);
+        cam_wrapper.accumu_render(*h_world);
         CHECK_ERROR(cudaDeviceSynchronize());
         CHECK_ERROR(cudaEventRecord(stop, nullptr));
         CHECK_ERROR(cudaEventSynchronize(stop));
         float milliseconds = 0;
         CHECK_ERROR(cudaEventElapsedTime(&milliseconds, start, stop));
         printf("[camera][info] render time: %f ms\n", milliseconds);
-        scene.refresh();
+//        scene.refresh();
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     if (scene.get_run_thread().joinable()) {

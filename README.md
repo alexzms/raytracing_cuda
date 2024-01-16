@@ -11,13 +11,11 @@ You can find my previous project on `raytracing in C++` in [this repository](htt
 ### Raytracing in CUDA C++
 Work progress:
 - [x] visualization based on [visualime](https://github.com/alexzms/visualime)
-- [x] output an image(chapter 1)
-- [x] `vec3<template>` class
-- [x] `ray` class
+- [x] basic rendering complete (naive raytracing)
+- [x] accumulative ray color
 
 TODOs:
-- [ ] `hittable` class
-- [ ] `sphere` class
+- [ ] speed up by Importance Sampling
 - ...
 
 ## Nvidia Nsight Compute Analysis
@@ -27,6 +25,7 @@ Also, I tried out the System Trace functionality, though I currently didn't work
 
 ## Demonstration
 ![output_an_image](screenshots/output_an_image.jpg)
+![basic_rendering_in_cuda](screenshots/basic_raytracing_in_cuda.jpg)
 
 ## References
 - [Ray Tracing in One Weekend](https://raytracing.github.io/books/RayTracingInOneWeekend.html)
