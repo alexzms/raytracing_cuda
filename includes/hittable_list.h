@@ -29,16 +29,14 @@ namespace rt_cuda {
             return hit_any;
         }
 
-        __device__ void test() const { printf("test()\n");}
-
         [[nodiscard]] __device__ aabb bounding_box() const override {
             return _bbox;
         }
 
     private:
-        hittable** _d_hittables{};
+        hittable** _d_hittables;
         size_t _d_hittables_length;
-        aabb _bbox;
+        aabb _bbox{};
     };
 }
 

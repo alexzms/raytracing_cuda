@@ -75,10 +75,10 @@ namespace rt_cuda {
                               ray& out, float& pdf) const override
         {
 //                                                                            // already satisfying the scattering_pdf
-            float a = utilities::random_float_d(state, 0, 2 * CONSTANT_PI);
-            float z = utilities::random_float_d(state, -1, 1);
+            float a = 2 * CONSTANT_PI * curand_uniform(state);
+            float z = -1 + 2 * curand_uniform(state);
             float r = sqrtf(1 - z * z);
-            vec3f scatter_direction = rec.normal + vec3f{r * cosf(a), r * sinf(a), z};
+//            vec3f scatter_direction = rec.normal + vec3f{r * cosf(a), r * sinf(a), z};
 //            onb uvw;
 //            uvw.build_from_normal(rec.normal);                                // lambertian distribution(cosine distri)
 //            auto scatter_direction = uvw.local_to_global(random_cosine_direction_d(state));
@@ -86,9 +86,7 @@ namespace rt_cuda {
 //            if (true || scatter_direction.near_zero()) {
 //                scatter_direction = rec.normal;
 //            }
-//            auto scatter_direction = rec.normal;
-            vec3f scatter_origin = rec.p;
-            out = ray{scatter_origin, scatter_direction};
+            out = ray{rec.p, rec.normal + vec3f{r * cosf(a), r * sinf(a), z}};
             color = _d_tex->value(rec.u, rec.v, rec.p);
 //            pdf = dot(uvw.w(), out.direction()) / CONSTANT_PI;    // pdf=cos(theta)/pi
             return true;

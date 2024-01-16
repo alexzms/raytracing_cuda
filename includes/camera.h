@@ -22,7 +22,8 @@ namespace rt_cuda {
         vec3f vup = vec3f{0, 1, 0};                // camera vup vector, actually it controls the rotation
         color3f background_color{0.2, 0.2, 0.2};  // {127, 179, 255}
 
-        __device__ explicit camera(): image_height(0), viewport_width(0.0) {}
+        __device__ explicit camera() : image_height(0), viewport_width(0.0) {}
+
         __device__  ~camera() = default;
 
         __device__ void set_camera_parameter(int width, int height) {
@@ -67,7 +68,8 @@ namespace rt_cuda {
             pixel00_location = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
 
             auto defocus_radius = focus_dist * tan(utilities::degree_to_radian(defocus_angle / 2));
-            defocus_disk_u = u * defocus_radius;                                    // camera defocus plane, basis vector
+            defocus_disk_u =
+                    u * defocus_radius;                                    // camera defocus plane, basis vector
             defocus_disk_v = v * defocus_radius;
             printf("[rt_cuda][info] camera initialized\n");
             initialized = true;
@@ -77,9 +79,8 @@ namespace rt_cuda {
             return std::sqrt(val);
         }
 
-        __device__ ray get_ray_defocus_monte_carlo(curandState* state, unsigned int w,
-                                                   unsigned int h, unsigned i, unsigned j) const
-        {
+        __device__ ray get_ray_defocus_monte_carlo(curandState *state, unsigned int w,
+                                                   unsigned int h, unsigned i, unsigned j) const {
             auto pixel_center = pixel00_location + h * pixel_delta_v + w * pixel_delta_u;
             auto pixel_random = pixel_center + pixel_sample_square_monte_carlo(state, i, j);
 
@@ -89,32 +90,49 @@ namespace rt_cuda {
             return ray{ray_origin, ray_direction};
         }
 
-        [[nodiscard]] __device__ color3f ray_color(curandState* state, const ray &r,
-                                                   unsigned int remain_depth, const hittable* world) const
-        {
-            if (remain_depth <= 0) return color3f{0, 0, 0};  // exceeds depths limit
-            hit_record rec;
-            if (!world->hit(r, interval(0.0001f, CONSTANT_INF), rec))
-                return background_color;                                  // no hit -> return background color
-//            else
-//                return {255, 255, 255};
-            color3f emission_color = rec.surface_material->emitted(state, rec.u, rec.v, rec.p);
-//            return emission_color;
-            ray scatter_ray;
-            color3f attenuation;
-            float pdf = 0.0;
-            if (!rec.surface_material->scatter(state, r, rec, attenuation, scatter_ray, pdf))
-                return emission_color;                                    // no scatter, just emission
+        [[nodiscard]] __device__ color3f ray_color(curandState *state, const ray &r,
+                                                   unsigned int total_depths, const hittable *world) const {
+            // Dynamic array to store attenuations
+            auto *attenuation_array = new color3f[total_depths];
+            auto *emission_array = new color3f[total_depths];
+            unsigned int scatter_end = 0;
 
-            // probability of getting scatter_ray
-//        float scattering_pdf = rec.surface_material->scattering_pdf(r, rec, scatter_ray);
-//        float sample_pdf = scattering_pdf;                              // relative prob of sampling this ray
-//
-//        color scatter_color = attenuation
-//                * scattering_pdf * ray_color(scatter_ray, remain_depth - 1, world) / sample_pdf;
-            // naive way
-            color3f scatter_color = attenuation * ray_color(state, scatter_ray, remain_depth - 1, world);
-            return emission_color + scatter_color;
+            color3f result = color3f{0, 0, 0};  // Accumulated color
+            ray current_ray = r;
+
+            for (unsigned int depth = 0; depth < total_depths; ++depth) {
+                hit_record rec;
+                if (world->hit(current_ray, interval(0.0001f, CONSTANT_INF), rec)) {
+                    color3f emission_color = rec.surface_material->emitted(state, rec.u, rec.v, rec.p);
+                    emission_array[depth] = emission_color;
+
+                    ray scatter_ray;
+                    color3f attenuation;
+                    float pdf = 0.0;
+                    if (rec.surface_material->scatter(state, current_ray, rec, attenuation, scatter_ray, pdf)) {
+                        attenuation_array[depth] = attenuation;
+                        current_ray = scatter_ray;
+                    } else {
+                        scatter_end = depth;
+                        break;
+                    }
+                } else {
+                    scatter_end = depth;
+                    result += background_color;
+                    break;
+                }
+            }
+
+            // Multiply attenuations
+            for (int i = scatter_end - 1; i >= 0; --i) {
+                result *= attenuation_array[i];
+                result += emission_array[i];
+            }
+
+            delete[] attenuation_array;  // Free dynamic array memory
+            delete[] emission_array;
+
+            return result;
         }
 
 
@@ -164,11 +182,12 @@ namespace rt_cuda {
             pixel00_location = viewport_upper_left + 0.5 * pixel_delta_u + 0.5 * pixel_delta_v;
 
             auto defocus_radius = focus_dist * tan(utilities::degree_to_radian(defocus_angle / 2));
-            defocus_disk_u = u * defocus_radius;                                    // camera defocus plane, basis vector
+            defocus_disk_u =
+                    u * defocus_radius;                                    // camera defocus plane, basis vector
             defocus_disk_v = v * defocus_radius;
         }
 
-        __device__ point3f pixel_sample_square_monte_carlo(curandState* state, unsigned i, unsigned j) const {
+        __device__ point3f pixel_sample_square_monte_carlo(curandState *state, unsigned i, unsigned j) const {
             auto px = -0.5f + (i + utilities::random_float_d(state)) * reciprocal_sqrt_spp;
             auto py = -0.5f + (j + utilities::random_float_d(state)) * reciprocal_sqrt_spp;      // from -0.5~0.5
 
@@ -181,7 +200,7 @@ namespace rt_cuda {
         }
 
 
-        [[nodiscard]] __device__ point3f pixel_sample_square(curandState* state) const {
+        [[nodiscard]] __device__ point3f pixel_sample_square(curandState *state) const {
             auto px = utilities::random_float_d(state, -0.5, 0.5);
             auto py = utilities::random_float_d(state, -0.5, 0.5);      // from -0.5~0.5
 
@@ -192,13 +211,14 @@ namespace rt_cuda {
 
     namespace kernel_funcs {
         __global__ void render
-                (uchar3* d_ptr, const hittable* world, const camera* cam, unsigned full_w, unsigned full_h, unsigned sqrt_spp, unsigned max_depth) {
+                (uchar3 *d_ptr, const hittable *world, const camera *cam, unsigned full_w, unsigned full_h,
+                 unsigned sqrt_spp, unsigned max_depth) {
             unsigned width = threadIdx.x + blockIdx.x * blockDim.x;
             unsigned height = threadIdx.y + blockIdx.y * blockDim.y;
 
             if (width >= full_w || height >= full_h) return;
             curandState state;
-            curand_init(clock64(), width+height, 0, &state);
+            curand_init(clock64(), width + height, 0, &state);
 
             unsigned index = width + height * full_w;
             vec3<float> pixel_color{0, 0, 0};
@@ -216,25 +236,25 @@ namespace rt_cuda {
             pixel_color[2] = camera::linear_to_gamma(pixel_color[2]);
 
             uchar3 result = {static_cast<unsigned char>(pixel_color[0] * 255),
-                               static_cast<unsigned char>(pixel_color[1] * 255),
-                               static_cast<unsigned char>(pixel_color[2] * 255)};
+                             static_cast<unsigned char>(pixel_color[1] * 255),
+                             static_cast<unsigned char>(pixel_color[2] * 255)};
             // write to d_ptr.
             d_ptr[index] = result;
         }
     }
     class camera_wrapper {
     public:
-        camera_wrapper(camera* d_cam, GLsizei width, GLsizei height, uchar3* d_ptr, unsigned spp):
-            _d_camera(d_cam), _spp(spp), _sqrt_spp(std::sqrt(spp)), _width(width), _height(height), _d_ptr(d_ptr)
-            {}
-        void render(hittable* d_world, dim3 block = dim3{10, 10}, unsigned max_depth = 50) {
+        camera_wrapper(camera *d_cam, GLsizei width, GLsizei height, uchar3 *d_ptr, unsigned spp) :
+                _d_camera(d_cam), _spp(spp), _sqrt_spp(std::sqrt(spp)), _width(width), _height(height), _d_ptr(d_ptr) {}
+
+        void render(hittable *d_world, dim3 block = dim3{10, 10}, unsigned max_depth = 2) {
             _block = block;
             _grid = dim3{(_width + _block.x - 1) / _block.x, (_height + _block.y - 1) / _block.y};
             printf("block: (%d, %d), grid: (%d, %d)\n", _block.x, _block.y, _grid.x, _grid.y);
 
             kernel_funcs::render<<<_grid, _block>>>(_d_ptr, d_world,
-                                                    _d_camera, _width, _height,
-                                                    _sqrt_spp, max_depth);
+                    _d_camera, _width, _height,
+                    _sqrt_spp, max_depth);
 //            CHECK_ERROR(cudaDeviceSynchronize());
         }
 
@@ -243,10 +263,10 @@ namespace rt_cuda {
 //                                                     unsigned sqrt_spp, unsigned max_depth);
     private:
         unsigned _spp, _sqrt_spp;
-        uchar3* _d_ptr;
+        uchar3 *_d_ptr;
         dim3 _grid{}, _block{};
         GLsizei _width, _height;
-        camera* _d_camera{};
+        camera *_d_camera{};
     };
 }
 

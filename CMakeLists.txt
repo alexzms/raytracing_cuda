@@ -46,6 +46,20 @@ add_executable(raytracing_cuda
         includes/raytracing_cuda.h
 )
 
+#target_compile_options(raytracing_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+#        --use_fast_math
+#        --relocatable-device-code=true
+#        --generate-line-info
+#        --use_fast_math
+#        --expt-relaxed-constexpr
+#        --expt-extended-lambda
+#        >
+#        # this is the end
+#        $<$<CONFIG:Debug>: -G -g -O0>
+#        $<$<CONFIG:Release>: -O3>
+#)
+
+
 set_target_properties(raytracing_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 

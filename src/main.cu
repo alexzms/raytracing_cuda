@@ -2,11 +2,10 @@
 #ifndef VISUALIME_USE_CUDA
 #define VISUALIME_USE_CUDA
 #endif
-#include "math.h"
 #include "visualime/visualime.h"
 #include "raytracing_cuda.h"
-#undef CHECK_ERROR
-#define CHECK_ERROR(x) x
+//#undef CHECK_ERROR
+//#define CHECK_ERROR(x) x
 
 
 void canvas_scene_cuda_2d_test() {
@@ -148,14 +147,14 @@ void background_color_scene() {
     camera** h_cam, **d_cam;
     h_cam = (camera**)malloc(sizeof(camera*));
     CHECK_ERROR(cudaMalloc((void**)&d_cam, sizeof(camera*)));
-    create_camera<<<1, 1>>>(d_cam, width, height, 9);
+    create_camera<<<1, 1>>>(d_cam, width, height, 1);
     CHECK_ERROR(cudaDeviceSynchronize());
     CHECK_ERROR(cudaMemcpy(h_cam, d_cam, sizeof(camera*), cudaMemcpyDeviceToHost));
 
     visualime::scene::canvas_scene_cuda_2d scene{width, height, (double)coeff, true};
     scene.launch(true, 60);
     scene.wait_for_running();
-    camera_wrapper cam_wrapper{*h_cam, width, height, scene.get_d_ptr(), 9};
+    camera_wrapper cam_wrapper{*h_cam, width, height, scene.get_d_ptr(), 1};
     while (scene.is_running()) {
         cudaEvent_t start, stop;
         CHECK_ERROR(cudaEventCreate(&start));
